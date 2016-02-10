@@ -26,12 +26,12 @@ import sys
 #	height_image = np.arctan(theta)*distance_away -height_object
 #	return height_image
 
-def depth_thresh(cam_height, focal_length, image_height): #returns max depth in pixels
-	max_distance = 2*focal_length*cam_height
+def depth_thresh(cam_height, focal_length, image_height): #returns max and min depth for a reflection in pixels
+	max_distance = 2*focal_length*cam_height #max distance to see one pixel clearly
 	min_depth = horizon_line + (max_distance**.5)
 	max_depth = horizon_line +(max_distance/5)
-	if max_depth >	image_height:
-		max_depth = image_height
+	if max_depth >	image_height: #if max_depth is greater than image height
+		max_depth = image_height #set max_depth = to image_height
 	return min_depth, max_depth
 
 def normed(img,con,sz):
@@ -90,13 +90,13 @@ if __name__ == '__main__':
 				muRef=np.array([ mRef['m10']/mRef['m00'],
 								mRef['m01']/mRef['m00'] ])
 				d=muRef-muSrc
-				if abs(d[0])<6 and abs(d[1])>8: #x is d[0], y is d[1]
-					width_upperbound = dim2*1.1
+				if abs(d[0])<6 and abs(d[1])>8: 
+					width_upperbound = dim2*1.1 #width must be within +/- 10%
 					width_lowerbound = dim2*.9
 					if dim1[0,0] > width_lowerbound[0,0] and dim1[0,0] < width_upperbound[0,0]:
-						height_lowerbound = (2*horizon_line)- muSrc[1]
+						height_lowerbound = (2*horizon_line)- muSrc[1] # lower bound distance on how close reflection is to horizon_line
 						if muRef[1] > height_lowerbound:
-							min_depth, max_depth = depth_thresh(2, focal_length, h)
+							min_depth, max_depth = depth_thresh(2, focal_length, h) #obtain min and max depth thresholds for the reflections
 							#print(muRef[1], min_depth, max_depth)
 							if muRef[1] < max_depth and muRef[1] > min_depth:
 								corrRes=cv2.matchTemplate(srcFlipped,normedPatches[j],cv2.TM_CCOEFF) #TM_CCOEFF are effective methods
@@ -105,12 +105,12 @@ if __name__ == '__main__':
 									maxIdx=j
 									maxScore=score
 		if maxIdx!=-1 and maxScore>0.9:
-			color = [np.random.uniform(0,255), np.random.uniform(0,255), np.random.uniform(0,255)]			
-			cv2.drawContours(display,source,i,(255,255,255),2)
-			cv2.drawContours(display,reflect,maxIdx,(0,255,255),2)
+			color = [np.random.uniform(150,255), np.random.uniform(150,255), 255]			
+			cv2.drawContours(vis,source,i,color,2)
+			cv2.drawContours(vis,reflect,maxIdx,color,2)
 			#cv2.namedWindow("reflection1.png", cv2.WINDOW_NORMAL)
-			cv2.imshow("reflection1.png", display)
-			cv2.waitKey(0)
-			cv2.destroyAllWindows()
+	cv2.imshow("reflection1.png", vis)
+	cv2.waitKey(0)
+	cv2.destroyAllWindows()
 
 
