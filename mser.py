@@ -28,11 +28,11 @@ import sys
 
 def depth_thresh(cam_height, focal_length, image_height, neg_src_height): #returns max and min depth for a reflection in pixels
 	max_distance = (2*focal_length*cam_height) #max distance to see one pixel clearly
-	min_depth = neg_src_height+(max_distance/(max_distance**.5))
-	max_depth = neg_src_height+(max_distance/5)
-	if max_depth >	image_height: #if max_depth is greater than image height
-		max_depth = image_height #set max_depth = to image_height
-	return min_depth, max_depth
+	min_disparity = neg_src_height+(max_distance/(max_distance**.5))
+	max_disparity = min_disparity+(max_distance/5)
+	if max_disparity >	image_height: #if max_depth is greater than image height
+		max_disparity = image_height #set max_depth = to image_height
+	return min_disparity, max_disparity
 
 def normed(img,con,sz):
 	"""Resizes patch to tuple sz"""
@@ -97,9 +97,9 @@ if __name__ == '__main__':
 						height_lowerbound = (2*horizon_line)- muSrc[1] # lower bound distance on how close reflection is to horizon_line
 						if muRef[1] > height_lowerbound:
 							neg_src_height = 2*horizon_line - muSrc[1]
-							print(muSrc[1], neg_src_height)
-							min_depth, max_depth = depth_thresh(2, focal_length, h, neg_src_height) #obtain min and max depth thresholds for the reflections
-							if muRef[1] < max_depth and muRef[1] > min_depth:
+							min_disparity, max_disparity = depth_thresh(2, focal_length, h, neg_src_height) #obtain min and max depth thresholds for the reflections
+							print(max_disparity, min_disparity)
+							if muRef[1] < max_disparity and muRef[1] > min_disparity:
 								corrRes=cv2.matchTemplate(srcFlipped,normedPatches[j],cv2.TM_CCOEFF) #TM_CCOEFF are effective methods
 								score=corrRes.max()
 								if score>maxScore:
