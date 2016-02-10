@@ -26,7 +26,7 @@ import sys
 #	height_image = np.arctan(theta)*distance_away -height_object
 #	return height_image
 
-def depth_thresh(cam_height, focal_length, image_height, neg_src_height): #returns max and min depth for a reflection in pixels
+def disparity_thresh(cam_height, focal_length, image_height, neg_src_height): #returns max and min depth for a reflection in pixels
 	max_distance = (2*focal_length*cam_height) #max distance to see one pixel clearly
 	min_disparity = neg_src_height+(max_distance/(max_distance**.5))
 	max_disparity = min_disparity+(max_distance/5)
@@ -97,7 +97,7 @@ if __name__ == '__main__':
 						height_lowerbound = (2*horizon_line)- muSrc[1] # lower bound distance on how close reflection is to horizon_line
 						if muRef[1] > height_lowerbound:
 							neg_src_height = 2*horizon_line - muSrc[1]
-							min_disparity, max_disparity = depth_thresh(2, focal_length, h, neg_src_height) #obtain min and max depth thresholds for the reflections
+							min_disparity, max_disparity = disparity_thresh(2, focal_length, h, neg_src_height) #obtain min and max depth thresholds for the reflections
 							print(max_disparity, min_disparity)
 							if muRef[1] < max_disparity and muRef[1] > min_disparity:
 								corrRes=cv2.matchTemplate(srcFlipped,normedPatches[j],cv2.TM_CCOEFF) #TM_CCOEFF are effective methods
