@@ -26,10 +26,10 @@ import sys
 #	height_image = np.arctan(theta)*distance_away -height_object
 #	return height_image
 
-def depth_thresh(cam_height, focal_length, image_height): #returns max and min depth for a reflection in pixels
-	max_distance = 2*focal_length*cam_height #max distance to see one pixel clearly
-	min_depth = horizon_line + (max_distance**.5)
-	max_depth = horizon_line +(max_distance/5)
+def depth_thresh(cam_height, focal_length, image_height, neg_src_height): #returns max and min depth for a reflection in pixels
+	max_distance = (2*focal_length*cam_height) #max distance to see one pixel clearly
+	min_depth = neg_src_height+(max_distance/(max_distance**.5))
+	max_depth = neg_src_height+(max_distance/5)
 	if max_depth >	image_height: #if max_depth is greater than image height
 		max_depth = image_height #set max_depth = to image_height
 	return min_depth, max_depth
@@ -96,8 +96,9 @@ if __name__ == '__main__':
 					if dim1[0,0] > width_lowerbound[0,0] and dim1[0,0] < width_upperbound[0,0]:
 						height_lowerbound = (2*horizon_line)- muSrc[1] # lower bound distance on how close reflection is to horizon_line
 						if muRef[1] > height_lowerbound:
-							min_depth, max_depth = depth_thresh(2, focal_length, h) #obtain min and max depth thresholds for the reflections
-							#print(muRef[1], min_depth, max_depth)
+							neg_src_height = 2*horizon_line - muSrc[1]
+							print(muSrc[1], neg_src_height)
+							min_depth, max_depth = depth_thresh(2, focal_length, h, neg_src_height) #obtain min and max depth thresholds for the reflections
 							if muRef[1] < max_depth and muRef[1] > min_depth:
 								corrRes=cv2.matchTemplate(srcFlipped,normedPatches[j],cv2.TM_CCOEFF) #TM_CCOEFF are effective methods
 								score=corrRes.max()
@@ -109,8 +110,8 @@ if __name__ == '__main__':
 			cv2.drawContours(vis,source,i,color,2)
 			cv2.drawContours(vis,reflect,maxIdx,color,2)
 			#cv2.namedWindow("reflection1.png", cv2.WINDOW_NORMAL)
-	cv2.imshow("reflection1.png", vis)
-	cv2.waitKey(0)
-	cv2.destroyAllWindows()
+			cv2.imshow("reflection1.png", vis)
+			cv2.waitKey(0)
+			cv2.destroyAllWindows()
 
 
