@@ -28,7 +28,7 @@ import sys
 
 def depth_thresh(cam_height, focal_length, image_height): #returns max depth in pixels
 	max_distance = 2*focal_length*cam_height
-	min_depth = horizon_line + (max_distance**.5) #check to make sure this is right
+	min_depth = horizon_line + (max_distance**.5)
 	max_depth = horizon_line +(max_distance/5)
 	if max_depth >	image_height:
 		max_depth = image_height
@@ -60,7 +60,6 @@ if __name__ == '__main__':
 	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 	vis = img.copy()
 	h,w,ch=img.shape
-	print(img.shape, h/2)
 	regions = mser.detect(gray, None)
 	hulls = [cv2.convexHull(p.reshape(-1, 1, 2)) for p in regions]
 	normedPatches=[normed(img,p,(100,100)) for p in hulls]
@@ -98,7 +97,7 @@ if __name__ == '__main__':
 						height_lowerbound = (2*horizon_line)- muSrc[1]
 						if muRef[1] > height_lowerbound:
 							min_depth, max_depth = depth_thresh(2, focal_length, h)
-							print(muRef[1], min_depth, max_depth)
+							#print(muRef[1], min_depth, max_depth)
 							if muRef[1] < max_depth and muRef[1] > min_depth:
 								corrRes=cv2.matchTemplate(srcFlipped,normedPatches[j],cv2.TM_CCOEFF) #TM_CCOEFF are effective methods
 								score=corrRes.max()
