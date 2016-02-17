@@ -68,7 +68,6 @@ if __name__ == '__main__':
 
     reflection_boundary1=args.v + focal_length*args.t/max_distance
     reflection_boundary2=args.v + focal_length*args.t/args.n
-    print(max_distance, min_disparity, max_disparity)
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     vis = img.copy()
@@ -92,6 +91,41 @@ if __name__ == '__main__':
     cv2.line(vis, (0,int(reflection_boundary2)), (w,int(reflection_boundary2)), (0,0,255))
     cv2.imshow("reflection", vis)
     cv2.waitKey(0)
+    for h in hulls:
+        hmax=h.max(axis=0)
+        if hmax[0,1]>reflection_boundary2: # cannot be a source
+            continue
+        vis=img.copy()
+        harea=cv2.contourArea(h)
+        hmean=h.mean(axis=0)
+        y=args.v-hmean[0,1]
+        hx,hy,hwidth,hheight = cv2.boundingRect(h)
+        """Construct search region"""
+        searchRegion=np.zeros((4,1,2),dtype=int)
+        searchRegion[0,0,:] = (int(hmean[0,0]-0.01*focal_length),int(max(args.v+y+min_disparity,hmean[0,1])))
+        searchRegion[1,0,:] = (int(hmean[0,0]+0.01*focal_length),int(max(args.v+y+min_disparity,hmean[0,1])))
+        searchRegion[2,0,:] = (int(hmean[0,0]+0.01*focal_length),int(args.v+y+max_disparity))
+        searchRegion[3,0,:] = (int(hmean[0,0]-0.01*focal_length),int(args.v+y+max_disparity))
+
+        good=[]
+        for candidate in hulls:
+            cmean=candidate.mean(axis=0)
+            if cv2.pointPolygonTest(searchRegion,(cmean[0,0],cmean[0,1]),False) < 0:
+                continue
+            good.append(candidate)
+
+        if len(good)==0:
+            continue
+        cv2.drawContours(vis,good,-1,(128,128,0),1)
+        cv2.rectangle(vis,(searchRegion[0,0,0],searchRegion[0,0,1]),
+                      (searchRegion[2,0,0],searchRegion[2,0,1]), (255,96,196))
+        cv2.drawContours(vis,[h],-1,(255,0,0),1)
+        cv2.line(vis, (0,int(reflection_boundary1)), (w,int(reflection_boundary1)), (0,0,255))
+        cv2.line(vis, (0,int(reflection_boundary2)), (w,int(reflection_boundary2)), (0,0,255))
+        cv2.line(vis, (0,int(args.v)), (w,int(args.v)), (0,255,0))
+        cv2.imshow("reflection", vis)
+        cv2.waitKey(0)
+
     '''
     normedPatches=[normed(img,p,(100,100)) for p in hulls]
     source = []
