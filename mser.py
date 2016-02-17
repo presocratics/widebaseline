@@ -63,7 +63,6 @@ if __name__ == '__main__':
 
     """Calculate the maximum distance"""
     max_distance = np.sqrt(2.0*focal_length*args.t)
-    min_disparity = 2.0*focal_length*args.t/max_distance
     max_disparity = 2.0*focal_length*args.t/args.n
 
     reflection_boundary1=args.v + focal_length*args.t/max_distance
@@ -92,9 +91,13 @@ if __name__ == '__main__':
     cv2.imshow("reflection", vis)
     cv2.waitKey(0)
     for h in hulls:
+        min_disparity = 2.0*focal_length*args.t/max_distance
         hmax=h.max(axis=0)
         if hmax[0,1]>reflection_boundary2: # cannot be a source
             continue
+        if hmax[0,1]>reflection_boundary1:
+            print(max_distance,(focal_length*args.t)/(hmax[0,1]-args.v))
+            min_disparity=2*(hmax[0,1]-args.v)
         vis=img.copy()
         harea=cv2.contourArea(h)
         hmean=h.mean(axis=0)
