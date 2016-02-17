@@ -54,12 +54,21 @@ if __name__ == '__main__':
     parser.add_argument('-f', type=float, default=800., help='Focal length.')
     parser.add_argument('-v', type=float, default=600., help='v0 center pixel in y')
     parser.add_argument('-t', type=float, default=2., help='Height above water in [m]')
+    parser.add_argument('-n', type=float, default=5., help='Nearest distance to observe.')
     parser.add_argument('img', help='Image to search')
     args=parser.parse_args()
 
     img = cv2.imread(args.img)
-    horizon_line=args.v
     focal_length=args.f
+
+    """Calculate the maximum distance"""
+    max_distance = np.sqrt(2.0*focal_length*args.t)
+    min_disparity = 2.0*focal_length*args.t/max_distance
+    max_disparity = 2.0*focal_length*args.t/args.n
+
+    reflection_boundary1=args.v + focal_length*args.t/max_distance
+    reflection_boundary2=args.v + focal_length*args.t/args.n
+    print(max_distance, min_disparity, max_disparity)
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     vis = img.copy()
@@ -78,7 +87,9 @@ if __name__ == '__main__':
     regions = mser.detect(img, None)
     hulls = [cv2.convexHull(p.reshape(-1, 1, 2)) for p in regions]
     cv2.drawContours(vis,hulls,-1,(255,0,0),1)
-    cv2.line(vis, (0,int(horizon_line)), (w,int(horizon_line)), (0,255,0))
+    cv2.line(vis, (0,int(args.v)), (w,int(args.v)), (0,255,0))
+    cv2.line(vis, (0,int(reflection_boundary1)), (w,int(reflection_boundary1)), (0,0,255))
+    cv2.line(vis, (0,int(reflection_boundary2)), (w,int(reflection_boundary2)), (0,0,255))
     cv2.imshow("reflection", vis)
     cv2.waitKey(0)
     '''
