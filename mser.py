@@ -13,6 +13,7 @@ Keys:
 
 '''
 
+import scipy
 import numpy as np
 import cv2
 import sys
@@ -41,6 +42,12 @@ def normed(img,con,sz):
     n=cv2.resize(patch, sz)
     return n
 
+def getMask(img,con):
+    h,w,c=img.shape
+    mask=np.zeros((h,w),dtype=np.uint8)
+    cv2.fillConvexPoly(mask,con,255)
+    return mask
+
 def getPatch(img,con):
     """Returns a patch from the contour"""
     mask=np.zeros(img.shape,dtype=img.dtype)
@@ -49,7 +56,7 @@ def getPatch(img,con):
     x,y,w,h=cv2.boundingRect(con)
     return mask[y:y+h,x:x+w]
 
-if __name__ == '__main__':
+def handleInput():
     parser = argparse.ArgumentParser(description='Match reflections.')
     parser.add_argument('-f', type=float, default=800., help='Focal length.')
     parser.add_argument('-v', type=float, default=600., help='v0 center pixel in y')
@@ -57,19 +64,10 @@ if __name__ == '__main__':
     parser.add_argument('-n', type=float, default=5., help='Nearest distance to observe.')
     parser.add_argument('img', help='Image to search')
     args=parser.parse_args()
+    return args
 
-    img = cv2.imread(args.img)
-    focal_length=args.f
-
-    """Calculate the maximum distance"""
-    max_distance = np.sqrt(2.0*focal_length*args.t)
-    max_disparity = 2.0*focal_length*args.t/args.n
-
-    reflection_boundary1=args.v + focal_length*args.t/max_distance
-    reflection_boundary2=args.v + focal_length*args.t/args.n
-
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    vis = img.copy()
+def findMSERCandidates(img):
+    """Returns MSER candidates"""
     h,w,ch=img.shape
     mina = 15*15 # minarea default: 60
     maxa = h*w/100 # maxarea default: 14400
@@ -82,46 +80,115 @@ if __name__ == '__main__':
 
     mser = cv2.MSER(_min_area=15*15,_max_area=h*w/100, _max_variation=mv,
                     _min_diversity=md)
-    regions = mser.detect(img, None)
+    #regions = mser.detect(cv2.cvtColor(img,cv2.COLOR_BGR2YCR_CB),None)
+    regions = mser.detect(img,None)
+    return regions
+
+def getSearchRegion(f,v0,t,mindist,mds,mdr,mean,hmax,hmin,isref=1,w=None):
+    """isref: 1 is src, 2 is ref, 3 is both"""
+    sr=[]
+    max_disparity = 2.0*f*t/mindist
+    if w is None:
+        l=int(mean[0,0]-0.01*f)
+        r=int(mean[0,0]+0.01*f)
+    else:
+        l=int(mean[0,0]-w/2)
+        r=int(mean[0,0]+w/2)
+    if isref==1 or isref==3: # source
+        searchRegion=np.zeros((4,1,2),dtype=int)
+        y=v0-mean[0,1]
+        searchRegion[0,0,:] = (l,int(max(v0+y+mds,hmax[0,1])))
+        searchRegion[1,0,:] = (r,int(max(v0+y+mds,hmax[0,1])))
+        searchRegion[2,0,:] = (r,int(v0+y+max_disparity))
+        searchRegion[3,0,:] = (l,int(v0+y+max_disparity))
+        sr.append(searchRegion.copy())
+    if isref==2 or isref==3: # reflection
+        searchRegion=np.zeros((4,1,2),dtype=int)
+        y=mean[0,1]-v0
+        searchRegion[0,0,:] = (l, int(v0-y+mdr))
+        searchRegion[1,0,:] = (r, int(v0-y+mdr))
+        searchRegion[2,0,:] = (r, int(min(v0-y+max_disparity,hmin[0,1])))
+        searchRegion[3,0,:] = (l, int(min(v0-y+max_disparity,hmin[0,1])))
+        sr.append(searchRegion.copy())
+
+    return sr
+
+
+if __name__ == '__main__':
+    args=handleInput()
+
+    img = cv2.imread(args.img)
+    h,w,c = img.shape
+    vis = img.copy()
+    focal_length=args.f
+
+    """Calculate the maximum distance"""
+    max_distance = np.sqrt(2.0*focal_length*args.t)
+    max_disparity = 2.0*focal_length*args.t/args.n
+
+    reflection_boundary1=args.v + focal_length*args.t/max_distance
+    reflection_boundary2=args.v + focal_length*args.t/args.n
+
+    regions = findMSERCandidates(img)
     hulls = [cv2.convexHull(p.reshape(-1, 1, 2)) for p in regions]
+
     cv2.drawContours(vis,hulls,-1,(255,0,0),1)
     cv2.line(vis, (0,int(args.v)), (w,int(args.v)), (0,255,0))
     cv2.line(vis, (0,int(reflection_boundary1)), (w,int(reflection_boundary1)), (0,0,255))
     cv2.line(vis, (0,int(reflection_boundary2)), (w,int(reflection_boundary2)), (0,0,255))
     cv2.imshow("reflection", vis)
     cv2.waitKey(0)
-    for h in hulls:
-        min_disparity = 2.0*focal_length*args.t/max_distance
-        hmax=h.max(axis=0)
-        if hmax[0,1]>reflection_boundary2: # cannot be a source
-            continue
-        if hmax[0,1]>reflection_boundary1:
-            print(max_distance,(focal_length*args.t)/(hmax[0,1]-args.v))
-            min_disparity=2*(hmax[0,1]-args.v)
-        vis=img.copy()
-        harea=cv2.contourArea(h)
-        hmean=h.mean(axis=0)
-        y=args.v-hmean[0,1]
-        hx,hy,hwidth,hheight = cv2.boundingRect(h)
-        """Construct search region"""
-        searchRegion=np.zeros((4,1,2),dtype=int)
-        searchRegion[0,0,:] = (int(hmean[0,0]-0.01*focal_length),int(max(args.v+y+min_disparity,hmean[0,1])))
-        searchRegion[1,0,:] = (int(hmean[0,0]+0.01*focal_length),int(max(args.v+y+min_disparity,hmean[0,1])))
-        searchRegion[2,0,:] = (int(hmean[0,0]+0.01*focal_length),int(args.v+y+max_disparity))
-        searchRegion[3,0,:] = (int(hmean[0,0]-0.01*focal_length),int(args.v+y+max_disparity))
 
+    for h in hulls:
+        min_disparity_ref = 2.0*focal_length*args.t/max_distance
+        min_disparity_src = 2.0*focal_length*args.t/max_distance
+        hmax=h.max(axis=0)
+        hmin=h.min(axis=0)
+        hmean=h.mean(axis=0)
+        hx,hy,hwidth,hheight = cv2.boundingRect(h)
+
+        isref=1 # 1 is src, 2 is ref, 3 is both
+        if hmean[0,1]>reflection_boundary2: # Must be a reflection
+            isref=2
+        elif hmean[0,1]>reflection_boundary1:
+            isref=3
+            min_disparity_src=2*(hmean[0,1]-args.v)
+        searchRegions = getSearchRegion(args.f, args.v, args.t, args.n, 
+                                        min_disparity_src,min_disparity_ref,
+                                        hmean, hmax, hmin, isref,w=hwidth)
+
+        vis=img.copy()
+
+        """Construct search region"""
+        '''
         good=[]
         for candidate in hulls:
             cmean=candidate.mean(axis=0)
-            if cv2.pointPolygonTest(searchRegion,(cmean[0,0],cmean[0,1]),False) < 0:
-                continue
-            good.append(candidate)
+            for sr in searchRegions:
+                if cv2.pointPolygonTest(sr,(cmean[0,0],cmean[0,1]),False) < 0:
+                    continue
+                mask=getMask(img,sr)
+                mkpt = srf.detect(img,mask)
+                mk,md = descriptor.compute(img,mkpt)
+                matches = matcher.match(sd, md)
+                dist = [m.distance for m in matches]
+                if len(dist)>0:
+                    print("min: %f mean: %f max: %f" % (np.min(dist), np.mean(dist), np.max(dist)))
+                    thresh_dist = (sum(dist) / len(dist)) * 0.5
+                    sel_matches = [m for m in matches if m.distance < thresh_dist]
+                    for m in sel_matches:
+                        color = tuple([scipy.random.randint(0, 255) for _ in xrange(3)])
+                        cv2.line(vis, (int(sk[m.queryIdx].pt[0]), int(sk[m.queryIdx].pt[1])) , (int(mk[m.trainIdx].pt[0]), int(mk[m.trainIdx].pt[1])), color)
+                        print(sk[m.queryIdx].pt,mk[m.trainIdx].pt)
+                good.append(candidate)
 
-        if len(good)==0:
-            continue
+        #if len(good)==0:
+        #    continue
         cv2.drawContours(vis,good,-1,(128,128,0),1)
-        cv2.rectangle(vis,(searchRegion[0,0,0],searchRegion[0,0,1]),
-                      (searchRegion[2,0,0],searchRegion[2,0,1]), (255,96,196))
+        '''
+        for sr in searchRegions:
+            cv2.rectangle(vis,(sr[0,0,0],sr[0,0,1]),
+                          (sr[2,0,0],sr[2,0,1]), (255,96,196))
         cv2.drawContours(vis,[h],-1,(255,0,0),1)
         cv2.line(vis, (0,int(reflection_boundary1)), (w,int(reflection_boundary1)), (0,0,255))
         cv2.line(vis, (0,int(reflection_boundary2)), (w,int(reflection_boundary2)), (0,0,255))
